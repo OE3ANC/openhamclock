@@ -232,8 +232,8 @@ MIT License - Free for personal and commercial use.
 
 ## Contact
 
-- **GitHub**: [github.com/your-repo/openhamclock](https://github.com)
-- **Email**: your-email@example.com
+- **GitHub**: [https://github.com/accius/openhamclock.git](https://github.com)
+- **Email**: chris@cjhlighting.com
 
 ---
 
