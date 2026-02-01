@@ -285,6 +285,35 @@
       margin-bottom: 8px;
       letter-spacing: 0.5px;
     }
+    
+    /* DX Cluster map tooltips */
+    .dx-tooltip {
+      background: rgba(20, 20, 30, 0.95) !important;
+      border: 1px solid rgba(0, 170, 255, 0.5) !important;
+      border-radius: 4px !important;
+      padding: 4px 8px !important;
+      font-family: 'JetBrains Mono', monospace !important;
+      font-size: 11px !important;
+      color: #00aaff !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+    }
+    .dx-tooltip::before {
+      border-top-color: rgba(0, 170, 255, 0.5) !important;
+    }
+    
+    /* Leaflet popup styling for DX spots */
+    .leaflet-popup-content-wrapper {
+      background: rgba(20, 20, 30, 0.95) !important;
+      border: 1px solid rgba(100, 100, 100, 0.5) !important;
+      border-radius: 8px !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+    }
+    .leaflet-popup-content {
+      margin: 10px 12px !important;
+    }
+    .leaflet-popup-tip {
+      background: rgba(20, 20, 30, 0.95) !important;
+    }
   </style>
 </head>
 <body>
@@ -2326,26 +2355,66 @@
                 }
               });
 
-              // Add small markers at DX station end only (to reduce clutter)
-              const dxIcon = L.divIcon({
-                className: '',
-                html: `<div style="width: 6px; height: 6px; background: ${color}; border-radius: 50%; border: 1px solid white; box-shadow: 0 0 3px ${color};"></div>`,
-                iconSize: [6, 6],
-                iconAnchor: [3, 3]
-              });
+              // Create popup content for spots
+              const dxPopupContent = `
+                <div style="font-family: JetBrains Mono, monospace; font-size: 12px; min-width: 150px;">
+                  <div style="font-weight: bold; color: ${color}; font-size: 14px; margin-bottom: 4px;">${path.dxCall}</div>
+                  ${path.dxGrid ? `<div style="color: #00ff88; font-size: 11px;">📍 ${path.dxGrid}</div>` : ''}
+                  <div style="color: #aaa; margin-top: 4px;"><b>${path.freq} MHz</b></div>
+                  <div style="color: #888; font-size: 11px; margin-top: 2px;">spotted by <b>${path.spotter}</b></div>
+                  ${path.comment ? `<div style="color: #666; font-size: 10px; margin-top: 4px; max-width: 180px; word-wrap: break-word;">${path.comment}</div>` : ''}
+                  <div style="color: #555; font-size: 10px; margin-top: 4px;">${path.time}</div>
+                </div>
+              `;
               
-              const marker = L.marker([path.dxLat, path.dxLon], { icon: dxIcon })
-                .bindPopup(`
-                  <div style="font-family: JetBrains Mono, monospace; font-size: 12px;">
-                    <b style="color: ${color}">${path.dxCall}</b><br>
-                    <span style="color: #888">spotted by</span> <b>${path.spotter}</b><br>
-                    <b>${path.freq} MHz</b><br>
-                    ${path.comment || ''}<br>
-                    <span style="color: #666">${path.time}</span>
-                  </div>
-                `)
+              const spotterPopupContent = `
+                <div style="font-family: JetBrains Mono, monospace; font-size: 12px; min-width: 150px;">
+                  <div style="font-weight: bold; color: #00aaff; font-size: 14px; margin-bottom: 4px;">${path.spotter}</div>
+                  <div style="color: #888; font-size: 11px;">Spotter</div>
+                  <div style="color: #aaa; margin-top: 4px;">spotted <b style="color: ${color}">${path.dxCall}</b></div>
+                  <div style="color: #666; font-size: 11px; margin-top: 2px;">on ${path.freq} MHz</div>
+                  <div style="color: #555; font-size: 10px; margin-top: 4px;">${path.time}</div>
+                </div>
+              `;
+
+              // Add hoverable circle at DX station end
+              const dxCircle = L.circleMarker([path.dxLat, path.dxLon], {
+                radius: 6,
+                fillColor: color,
+                color: '#fff',
+                weight: 1.5,
+                opacity: 1,
+                fillOpacity: 0.9
+              })
+                .bindPopup(dxPopupContent)
+                .bindTooltip(path.dxCall, { 
+                  permanent: false, 
+                  direction: 'top', 
+                  offset: [0, -8],
+                  className: 'dx-tooltip'
+                })
                 .addTo(map);
-              dxPathsMarkersRef.current.push(marker);
+              dxPathsMarkersRef.current.push(dxCircle);
+              
+              // Add hoverable circle at spotter end (smaller, different style)
+              const spotterCircle = L.circleMarker([path.spotterLat, path.spotterLon], {
+                radius: 4,
+                fillColor: '#00aaff',
+                color: '#fff',
+                weight: 1,
+                opacity: 0.8,
+                fillOpacity: 0.7
+              })
+                .bindPopup(spotterPopupContent)
+                .bindTooltip(path.spotter, { 
+                  permanent: false, 
+                  direction: 'top', 
+                  offset: [0, -6],
+                  className: 'dx-tooltip'
+                })
+                .addTo(map);
+              dxPathsMarkersRef.current.push(spotterCircle);
+              
             } catch (err) {
               console.error('[DX Paths] Error rendering path:', err, path);
             }
