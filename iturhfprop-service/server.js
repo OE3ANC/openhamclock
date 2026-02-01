@@ -36,12 +36,10 @@ const CACHE_MAX_SIZE = 100;
 let circuitBreakerOpen = false;
 let consecutiveFailures = 0;
 let lastFailureTime = 0;
-const FAILURE_THRESHOLD = 5;
-const CIRCUIT_RESET_TIME = 60 * 1000; // 1 minute
-
-// Rate limiting - track last log time to avoid log spam
-let lastErrorLogTime = 0;
-const ERROR_LOG_INTERVAL = 10000; // Only log errors every 10 seconds
+let lastLogTime = 0;
+const FAILURE_THRESHOLD = 3;  // Open after 3 failures
+const CIRCUIT_RESET_TIME = 2 * 60 * 1000; // 2 minutes before retry
+const LOG_INTERVAL = 30000; // Only log every 30 seconds
 
 function getCacheKey(params) {
   // Round coordinates to 1 decimal place for better cache hits
@@ -67,6 +65,15 @@ function setCache(key, data) {
   predictionCache.set(key, { data, timestamp: Date.now() });
 }
 
+function shouldLog() {
+  const now = Date.now();
+  if (now - lastLogTime > LOG_INTERVAL) {
+    lastLogTime = now;
+    return true;
+  }
+  return false;
+}
+
 function checkCircuitBreaker() {
   if (!circuitBreakerOpen) return false;
   
@@ -74,7 +81,9 @@ function checkCircuitBreaker() {
   if (Date.now() - lastFailureTime > CIRCUIT_RESET_TIME) {
     circuitBreakerOpen = false;
     consecutiveFailures = 0;
-    console.log('[Circuit Breaker] Reset - allowing requests');
+    if (shouldLog()) {
+      console.log('[Circuit Breaker] Reset - allowing requests');
+    }
     return false;
   }
   return true;
@@ -84,12 +93,10 @@ function recordFailure() {
   consecutiveFailures++;
   lastFailureTime = Date.now();
   
-  if (consecutiveFailures >= FAILURE_THRESHOLD) {
+  if (consecutiveFailures >= FAILURE_THRESHOLD && !circuitBreakerOpen) {
     circuitBreakerOpen = true;
-    // Only log this once
-    if (Date.now() - lastErrorLogTime > ERROR_LOG_INTERVAL) {
-      console.log(`[Circuit Breaker] OPEN - ${consecutiveFailures} consecutive failures, pausing for ${CIRCUIT_RESET_TIME/1000}s`);
-      lastErrorLogTime = Date.now();
+    if (shouldLog()) {
+      console.log(`[Circuit Breaker] OPEN after ${consecutiveFailures} failures - pausing for ${CIRCUIT_RESET_TIME/1000}s`);
     }
   }
 }
@@ -119,8 +126,8 @@ const HF_BANDS = {
   '17m': 18.1,
   '15m': 21.1,
   '12m': 24.9,
-  '11m': 27.0,    // CB band (26.965-27.405 MHz)
   '10m': 28.1
+  // Note: 11m (27 MHz) excluded - too close to P.533 upper limit, use built-in calculation
   // Note: 6m (50 MHz) excluded - outside P.533 HF range (2-30 MHz)
 };
 
@@ -240,7 +247,6 @@ function parseOutputFile(outputPath) {
               snr: snr,
               reliability: bcr
             });
-            // Removed per-frequency logging to reduce spam
           }
         }
       }
@@ -252,17 +258,9 @@ function parseOutputFile(outputPath) {
       results.muf = parseFloat(mufMatch[1]);
     }
     
-    // Only log success occasionally
-    if (results.frequencies.length > 0 && Date.now() - lastErrorLogTime > ERROR_LOG_INTERVAL) {
-      console.log(`[Parse] Found ${results.frequencies.length} frequency results, MUF=${results.muf || 'N/A'}`);
-    }
     return results;
   } catch (err) {
-    // Only log errors occasionally
-    if (Date.now() - lastErrorLogTime > ERROR_LOG_INTERVAL) {
-      console.error('[Parse Error]', err.message);
-      lastErrorLogTime = Date.now();
-    }
+    // File doesn't exist - this is expected when ITURHFProp fails
     return { error: err.message, frequencies: [] };
   }
 }
@@ -271,16 +269,16 @@ function parseOutputFile(outputPath) {
  * Run ITURHFProp prediction
  */
 async function runPrediction(params) {
-  // Check circuit breaker first
+  // Check circuit breaker first - return immediately if open
   if (checkCircuitBreaker()) {
-    return { error: 'Circuit breaker open - service temporarily unavailable', frequencies: [] };
+    return { error: 'Circuit breaker open', frequencies: [], circuitBreakerOpen: true };
   }
   
   // Check cache
   const cacheKey = getCacheKey(params);
   const cached = getFromCache(cacheKey);
   if (cached) {
-    return cached;
+    return { ...cached, fromCache: true };
   }
   
   const id = crypto.randomBytes(8).toString('hex');
@@ -292,44 +290,32 @@ async function runPrediction(params) {
     fs.mkdirSync(TEMP_DIR, { recursive: true });
   }
   
-  let execStdout = '';
-  let execStderr = '';
-  
   try {
     // Generate input file
     const inputContent = generateInputFile(params);
     fs.writeFileSync(inputPath, inputContent);
     
-    // Only log occasionally to avoid spam
-    const shouldLog = Date.now() - lastErrorLogTime > ERROR_LOG_INTERVAL;
-    if (shouldLog) {
-      console.log(`[ITURHFProp] Running prediction ${id}: TX(${params.txLat.toFixed(1)},${params.txLon.toFixed(1)}) -> RX(${params.rxLat.toFixed(1)},${params.rxLon.toFixed(1)})`);
-    }
-    
     // Run ITURHFProp
     const startTime = Date.now();
     const cmd = `${ITURHFPROP_PATH} ${inputPath} ${outputPath}`;
     
+    let execStdout = '';
     try {
       execStdout = execSync(cmd, {
-        timeout: 30000,  // 30 second timeout
+        timeout: 30000,
         encoding: 'utf8',
         env: { ...process.env, LD_LIBRARY_PATH: '/opt/iturhfprop:' + (process.env.LD_LIBRARY_PATH || '') }
       });
     } catch (execError) {
-      execStderr = execError.stderr?.toString() || '';
-      execStdout = execError.stdout?.toString() || '';
-      
-      // Only log errors periodically to avoid spam
-      if (Date.now() - lastErrorLogTime > ERROR_LOG_INTERVAL) {
-        console.error(`[ITURHFProp] Error (exit ${execError.status}): ${execStdout.substring(0, 100)}`);
-        lastErrorLogTime = Date.now();
-      }
-      
       recordFailure();
       
-      // Return empty result but cache it to avoid repeated failures
-      const errorResult = { error: `Exit code ${execError.status}`, frequencies: [], cached: false };
+      // Only log occasionally
+      if (shouldLog()) {
+        console.error(`[ITURHFProp] Failed (exit ${execError.status}), failures: ${consecutiveFailures}, circuit: ${circuitBreakerOpen ? 'OPEN' : 'closed'}`);
+      }
+      
+      // Cache the error to prevent repeated attempts
+      const errorResult = { error: `Exit code ${execError.status}`, frequencies: [] };
       setCache(cacheKey, errorResult);
       return errorResult;
     }
@@ -361,6 +347,10 @@ async function runPrediction(params) {
     
     // Cache successful result
     setCache(cacheKey, results);
+    
+    if (shouldLog()) {
+      console.log(`[ITURHFProp] Success: ${results.frequencies.length} freqs, MUF=${results.muf || 'N/A'}`);
+    }
     
     return results;
     
