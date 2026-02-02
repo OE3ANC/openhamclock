@@ -45,9 +45,17 @@ export const Header = ({
       
       {/* UTC Clock */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span style={{ fontSize: '14px', color: 'var(--accent-cyan)', fontWeight: '600' }}>UTC</span>
-        <span style={{ fontSize: '28px', fontWeight: '700', color: 'var(--accent-cyan)', fontFamily: 'Orbitron, monospace' }}>{utcTime}</span>
-        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{utcDate}</span>
+        <span style={{ fontSize: '14px', color: 'var(--accent-cyan)', fontWeight: '600', minWidth: '36px' }}>UTC</span>
+        <span style={{ 
+          fontSize: '28px', 
+          fontWeight: '700', 
+          color: 'var(--accent-cyan)', 
+          fontFamily: 'Orbitron, monospace',
+          fontVariantNumeric: 'tabular-nums',
+          minWidth: '120px',
+          textAlign: 'right'
+        }}>{utcTime}</span>
+        <span style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: '110px' }}>{utcDate}</span>
       </div>
       
       {/* Local Clock - Clickable to toggle 12/24 hour format */}
@@ -56,34 +64,42 @@ export const Header = ({
         onClick={onTimeFormatToggle}
         title={`Click to switch to ${use12Hour ? '24-hour' : '12-hour'} format`}
       >
-        <span style={{ fontSize: '14px', color: 'var(--accent-amber)', fontWeight: '600' }}>LOCAL</span>
-        <span style={{ fontSize: '28px', fontWeight: '700', color: 'var(--accent-amber)', fontFamily: 'Orbitron, monospace' }}>{localTime}</span>
-        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{localDate}</span>
+        <span style={{ fontSize: '14px', color: 'var(--accent-amber)', fontWeight: '600', minWidth: '50px' }}>LOCAL</span>
+        <span style={{ 
+          fontSize: '28px', 
+          fontWeight: '700', 
+          color: 'var(--accent-amber)', 
+          fontFamily: 'Orbitron, monospace',
+          fontVariantNumeric: 'tabular-nums',
+          minWidth: '120px',
+          textAlign: 'right'
+        }}>{localTime}</span>
+        <span style={{ fontSize: '13px', color: 'var(--text-muted)', minWidth: '110px' }}>{localDate}</span>
       </div>
       
       {/* Weather & Solar Stats */}
       <div style={{ display: 'flex', gap: '20px', fontSize: '14px' }}>
         {localWeather?.data && (
-          <div title={`${localWeather.data.description} • Wind: ${localWeather.data.windSpeed} mph`}>
+          <div title={`${localWeather.data.description} • Wind: ${localWeather.data.windSpeed} mph`} style={{ minWidth: '90px' }}>
             <span style={{ marginRight: '4px' }}>{localWeather.data.icon}</span>
-            <span style={{ color: 'var(--accent-cyan)', fontWeight: '600' }}>
+            <span style={{ color: 'var(--accent-cyan)', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>
               {localWeather.data.temp}°F / {Math.round((localWeather.data.temp - 32) * 5/9)}°C
             </span>
           </div>
         )}
-        <div>
+        <div style={{ minWidth: '55px' }}>
           <span style={{ color: 'var(--text-muted)' }}>SFI </span>
-          <span style={{ color: 'var(--accent-amber)', fontWeight: '700', fontSize: '16px' }}>{spaceWeather?.data?.solarFlux || '--'}</span>
+          <span style={{ color: 'var(--accent-amber)', fontWeight: '700', fontSize: '16px', fontVariantNumeric: 'tabular-nums' }}>{spaceWeather?.data?.solarFlux || '--'}</span>
         </div>
-        <div>
+        <div style={{ minWidth: '35px' }}>
           <span style={{ color: 'var(--text-muted)' }}>K </span>
-          <span style={{ color: parseInt(spaceWeather?.data?.kIndex) >= 4 ? 'var(--accent-red)' : 'var(--accent-green)', fontWeight: '700', fontSize: '16px' }}>
+          <span style={{ color: parseInt(spaceWeather?.data?.kIndex) >= 4 ? 'var(--accent-red)' : 'var(--accent-green)', fontWeight: '700', fontSize: '16px', fontVariantNumeric: 'tabular-nums' }}>
             {spaceWeather?.data?.kIndex ?? '--'}
           </span>
         </div>
-        <div>
+        <div style={{ minWidth: '55px' }}>
           <span style={{ color: 'var(--text-muted)' }}>SSN </span>
-          <span style={{ color: 'var(--accent-cyan)', fontWeight: '700', fontSize: '16px' }}>{spaceWeather?.data?.sunspotNumber || '--'}</span>
+          <span style={{ color: 'var(--accent-cyan)', fontWeight: '700', fontSize: '16px', fontVariantNumeric: 'tabular-nums' }}>{spaceWeather?.data?.sunspotNumber || '--'}</span>
         </div>
       </div>
       
