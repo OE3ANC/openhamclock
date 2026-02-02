@@ -1,6 +1,6 @@
 /**
  * WorldMap Component
- * Leaflet map with DE/DX markers, terminator, DX paths, POTA, satellites
+ * Leaflet map with DE/DX markers, terminator, DX paths, POTA, satellites, PSKReporter
  */
 import React, { useRef, useEffect, useState } from 'react';
 import { MAP_STYLES } from '../utils/config.js';
@@ -25,11 +25,13 @@ export const WorldMap = ({
   dxPaths, 
   dxFilters, 
   satellites, 
+  pskReporterSpots,
   showDXPaths, 
   showDXLabels, 
   onToggleDXLabels, 
   showPOTA, 
   showSatellites, 
+  showPSKReporter,
   onToggleSatellites, 
   hoveredSpot 
 }) => {
@@ -48,10 +50,11 @@ export const WorldMap = ({
   const dxPathsMarkersRef = useRef([]);
   const satMarkersRef = useRef([]);
   const satTracksRef = useRef([]);
+  const pskMarkersRef = useRef([]);
 
+  // Plugin system refs and state
   const pluginLayersRef = useRef({});
   const [pluginLayerStates, setPluginLayerStates] = useState({});
-
   
   // Load map style from localStorage
   const getStoredMapSettings = () => {
@@ -424,7 +427,6 @@ export const WorldMap = ({
     }
   }, [satellites, showSatellites]);
 
-
   // Plugin layer system - properly load saved states
   useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -503,16 +505,76 @@ export const WorldMap = ({
     }
   }, [pluginLayerStates]);
 
+  // Update PSKReporter markers
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
 
-//  return (
-//    <div style={{ position: 'relative', height: '100%', minHeight: '200px' }}>
-//      <div ref={mapRef} style={{ height: '100%', width: '100%', borderRadius: '8px' }} />
+    pskMarkersRef.current.forEach(m => map.removeLayer(m));
+    pskMarkersRef.current = [];
+
+    // Validate deLocation exists and has valid coordinates
+    const hasValidDE = deLocation && 
+      typeof deLocation.lat === 'number' && !isNaN(deLocation.lat) &&
+      typeof deLocation.lon === 'number' && !isNaN(deLocation.lon);
+
+    if (showPSKReporter && pskReporterSpots && pskReporterSpots.length > 0 && hasValidDE) {
+      pskReporterSpots.forEach(spot => {
+        // Validate spot coordinates are valid numbers
+        const spotLat = parseFloat(spot.lat);
+        const spotLon = parseFloat(spot.lon);
+        
+        if (!isNaN(spotLat) && !isNaN(spotLon)) {
+          const displayCall = spot.receiver || spot.sender;
+          const freqMHz = spot.freqMHz || (spot.freq ? (spot.freq / 1000000).toFixed(3) : '?');
+          const bandColor = getBandColor(parseFloat(freqMHz));
+          
+          try {
+            // Draw line from DE to spot location
+            const points = getGreatCirclePoints(
+              deLocation.lat, deLocation.lon,
+              spotLat, spotLon,
+              50
+            );
+            
+            // Validate points before creating polyline
+            if (points && points.length > 1 && points.every(p => Array.isArray(p) && !isNaN(p[0]) && !isNaN(p[1]))) {
+              const line = L.polyline(points, {
+                color: bandColor,
+                weight: 1.5,
+                opacity: 0.5,
+                dashArray: '4, 4'
+              }).addTo(map);
+              pskMarkersRef.current.push(line);
+            }
+            
+            // Add small dot marker at spot location
+            const circle = L.circleMarker([spotLat, spotLon], {
+              radius: 4,
+              fillColor: bandColor,
+              color: '#fff',
+              weight: 1,
+              opacity: 0.9,
+              fillOpacity: 0.8
+            }).bindPopup(`
+              <b>${displayCall}</b><br>
+              ${spot.mode} @ ${freqMHz} MHz<br>
+              ${spot.snr !== null ? `SNR: ${spot.snr > 0 ? '+' : ''}${spot.snr} dB` : ''}
+            `).addTo(map);
+            pskMarkersRef.current.push(circle);
+          } catch (err) {
+            console.warn('Error rendering PSKReporter spot:', err);
+          }
+        }
+      });
+    }
+  }, [pskReporterSpots, showPSKReporter, deLocation]);
 
   return (
     <div style={{ position: 'relative', height: '100%', minHeight: '200px' }}>
       <div ref={mapRef} style={{ height: '100%', width: '100%', borderRadius: '8px' }} />
       
-      {/* Render all plugin layers - GENERIC */}
+      {/* Render all plugin layers */}
       {mapInstanceRef.current && getAllLayers().map(layerDef => (
         <PluginLayer
           key={layerDef.id}
@@ -522,7 +584,6 @@ export const WorldMap = ({
           map={mapInstanceRef.current}
         />
       ))}
-      
       
       {/* Map style dropdown */}
       <select
