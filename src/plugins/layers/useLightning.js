@@ -274,23 +274,44 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
         
         div.innerHTML = `
           <div style="background: rgba(0, 0, 0, 0.8); color: white; padding: 10px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px; min-width: 180px;">
-            <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+            <div style="font-weight: bold; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; cursor: pointer;" class="lightning-stats-header">
               <span>⚡ Lightning Activity</span>
+              <span class="lightning-stats-toggle" style="font-size: 12px; cursor: pointer; user-select: none;">▼</span>
             </div>
-            <table style="width: 100%; font-size: 11px;">
-              <tr><td>Fresh (&lt;1 min):</td><td style="text-align: right; color: #FFD700;">${fresh}</td></tr>
-              <tr><td>Recent (&lt;5 min):</td><td style="text-align: right; color: #FFA500;">${recent}</td></tr>
-              <tr><td>Total (30 min):</td><td style="text-align: right; color: #FF6B6B;">${total}</td></tr>
-              <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #444;"></td></tr>
-              <tr><td>Avg Intensity:</td><td style="text-align: right;">${avgIntensity.toFixed(1)} kA</td></tr>
-              <tr><td>Positive:</td><td style="text-align: right; color: #FFD700;">+${positiveStrikes}</td></tr>
-              <tr><td>Negative:</td><td style="text-align: right; color: #87CEEB;">-${negativeStrikes}</td></tr>
-            </table>
-            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444; font-size: 9px; color: #aaa; text-align: center;">
-              Updates every 30s
+            <div class="lightning-stats-content">
+              <table style="width: 100%; font-size: 11px;">
+                <tr><td>Fresh (&lt;1 min):</td><td style="text-align: right; color: #FFD700;">${fresh}</td></tr>
+                <tr><td>Recent (&lt;5 min):</td><td style="text-align: right; color: #FFA500;">${recent}</td></tr>
+                <tr><td>Total (30 min):</td><td style="text-align: right; color: #FF6B6B;">${total}</td></tr>
+                <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #444;"></td></tr>
+                <tr><td>Avg Intensity:</td><td style="text-align: right;">${avgIntensity.toFixed(1)} kA</td></tr>
+                <tr><td>Positive:</td><td style="text-align: right; color: #FFD700;">+${positiveStrikes}</td></tr>
+                <tr><td>Negative:</td><td style="text-align: right; color: #87CEEB;">-${negativeStrikes}</td></tr>
+              </table>
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #444; font-size: 9px; color: #aaa; text-align: center;">
+                Updates every 30s
+              </div>
             </div>
           </div>
         `;
+
+        // Add minimize/maximize functionality
+        const header = div.querySelector('.lightning-stats-header');
+        const content = div.querySelector('.lightning-stats-content');
+        const toggle = div.querySelector('.lightning-stats-toggle');
+        
+        const minimized = localStorage.getItem('lightning-stats-minimized') === 'true';
+        if (minimized) {
+          content.style.display = 'none';
+          toggle.textContent = '▶';
+        }
+        
+        header.addEventListener('click', () => {
+          const isMinimized = content.style.display === 'none';
+          content.style.display = isMinimized ? 'block' : 'none';
+          toggle.textContent = isMinimized ? '▼' : '▶';
+          localStorage.setItem('lightning-stats-minimized', !isMinimized);
+        });
 
         // Prevent map interaction on control
         L.DomEvent.disableClickPropagation(div);
