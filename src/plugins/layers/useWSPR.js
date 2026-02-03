@@ -72,7 +72,21 @@ function getLineWeight(snr) {
 
 // Calculate great circle path between two points
 // Returns array of lat/lon points forming a smooth curve
-function getGreatCirclePath(lat1, lon1, lat2, lon2, numPoints = 50) {
+function getGreatCirclePath(lat1, lon1, lat2, lon2, numPoints = 30) {
+  // Validate input coordinates
+  if (!isFinite(lat1) || !isFinite(lon1) || !isFinite(lat2) || !isFinite(lon2)) {
+    console.warn('Invalid coordinates for great circle:', { lat1, lon1, lat2, lon2 });
+    return [[lat1, lon1], [lat2, lon2]]; // Fallback to straight line
+  }
+  
+  // Check if points are very close (less than 1 degree)
+  const deltaLat = Math.abs(lat2 - lat1);
+  const deltaLon = Math.abs(lon2 - lon1);
+  if (deltaLat < 0.5 && deltaLon < 0.5) {
+    // Points too close, use simple line
+    return [[lat1, lon1], [lat2, lon2]];
+  }
+  
   const path = [];
   
   // Convert to radians
@@ -85,17 +99,26 @@ function getGreatCirclePath(lat1, lon1, lat2, lon2, numPoints = 50) {
   const lon2Rad = toRad(lon2);
   
   // Calculate great circle distance
-  const d = Math.acos(
-    Math.sin(lat1Rad) * Math.sin(lat2Rad) +
-    Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.cos(lon2Rad - lon1Rad)
-  );
+  const cosD = Math.sin(lat1Rad) * Math.sin(lat2Rad) +
+               Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.cos(lon2Rad - lon1Rad);
+  
+  // Clamp to [-1, 1] to avoid NaN from Math.acos
+  const d = Math.acos(Math.max(-1, Math.min(1, cosD)));
+  
+  // Check if distance is too small or points are antipodal
+  if (d < 0.01 || Math.abs(d - Math.PI) < 0.01) {
+    // Use simple line for very small or antipodal distances
+    return [[lat1, lon1], [lat2, lon2]];
+  }
+  
+  const sinD = Math.sin(d);
   
   // Generate intermediate points along the great circle
   for (let i = 0; i <= numPoints; i++) {
     const f = i / numPoints;
     
-    const A = Math.sin((1 - f) * d) / Math.sin(d);
-    const B = Math.sin(f * d) / Math.sin(d);
+    const A = Math.sin((1 - f) * d) / sinD;
+    const B = Math.sin(f * d) / sinD;
     
     const x = A * Math.cos(lat1Rad) * Math.cos(lon1Rad) + B * Math.cos(lat2Rad) * Math.cos(lon2Rad);
     const y = A * Math.cos(lat1Rad) * Math.sin(lon1Rad) + B * Math.cos(lat2Rad) * Math.sin(lon2Rad);
@@ -104,7 +127,15 @@ function getGreatCirclePath(lat1, lon1, lat2, lon2, numPoints = 50) {
     const lat = toDeg(Math.atan2(z, Math.sqrt(x * x + y * y)));
     const lon = toDeg(Math.atan2(y, x));
     
-    path.push([lat, lon]);
+    // Validate computed point
+    if (isFinite(lat) && isFinite(lon)) {
+      path.push([lat, lon]);
+    }
+  }
+  
+  // If path generation failed, fall back to straight line
+  if (path.length < 2) {
+    return [[lat1, lon1], [lat2, lon2]];
   }
   
   return path;
@@ -169,14 +200,31 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
     const limitedData = wsprData.slice(0, 500);
 
     limitedData.forEach(spot => {
+      // Validate spot coordinates
+      if (!spot.senderLat || !spot.senderLon || !spot.receiverLat || !spot.receiverLon) {
+        console.warn('[WSPR] Skipping spot with invalid coordinates:', spot);
+        return;
+      }
+      
+      // Ensure coordinates are valid numbers
+      const sLat = parseFloat(spot.senderLat);
+      const sLon = parseFloat(spot.senderLon);
+      const rLat = parseFloat(spot.receiverLat);
+      const rLon = parseFloat(spot.receiverLon);
+      
+      if (!isFinite(sLat) || !isFinite(sLon) || !isFinite(rLat) || !isFinite(rLon)) {
+        console.warn('[WSPR] Skipping spot with non-finite coordinates:', { sLat, sLon, rLat, rLon });
+        return;
+      }
+      
       // Calculate great circle path for curved line
-      const pathCoords = getGreatCirclePath(
-        spot.senderLat,
-        spot.senderLon,
-        spot.receiverLat,
-        spot.receiverLon,
-        30 // Number of points for smooth curve
-      );
+      const pathCoords = getGreatCirclePath(sLat, sLon, rLat, rLon, 30);
+      
+      // Skip if path is invalid
+      if (!pathCoords || pathCoords.length < 2) {
+        console.warn('[WSPR] Invalid path coordinates generated');
+        return;
+      }
       
       const path = L.polyline(pathCoords, {
         color: getSNRColor(spot.snr),
@@ -210,7 +258,7 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
       if (!txStations.has(txKey)) {
         txStations.add(txKey);
         
-        const txMarker = L.circleMarker([spot.senderLat, spot.senderLon], {
+        const txMarker = L.circleMarker([sLat, sLon], {
           radius: 4,
           fillColor: '#ff6600',
           color: '#ffffff',
@@ -228,7 +276,7 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null }) {
       if (!rxStations.has(rxKey)) {
         rxStations.add(rxKey);
         
-        const rxMarker = L.circleMarker([spot.receiverLat, spot.receiverLon], {
+        const rxMarker = L.circleMarker([rLat, rLon], {
           radius: 4,
           fillColor: '#0088ff',
           color: '#ffffff',
