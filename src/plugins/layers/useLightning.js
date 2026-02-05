@@ -709,8 +709,8 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
       return;
     }
     
-    const stationLat = config.latitude;
-    const stationLon = config.longitude;
+    const stationLat = config.location?.lat || config.latitude;
+    const stationLon = config.location?.lon || config.longitude;
     
     if (!stationLat || !stationLon || lightningData.length === 0) return;
     
@@ -792,8 +792,8 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
       return;
     }
     
-    const stationLat = config.latitude;
-    const stationLon = config.longitude;
+    const stationLat = config.location?.lat || config.latitude;
+    const stationLon = config.location?.lon || config.longitude;
     
     console.log('[Lightning] Proximity: Station location:', { stationLat, stationLon });
     
@@ -896,8 +896,8 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
       return;
     }
     
-    const stationLat = config.latitude;
-    const stationLon = config.longitude;
+    const stationLat = config.location?.lat || config.latitude;
+    const stationLon = config.location?.lon || config.longitude;
     
     if (!stationLat || !stationLon) return;
 
