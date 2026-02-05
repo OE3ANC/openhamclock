@@ -747,20 +747,18 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
   // Create proximity panel control (30km radius)
   useEffect(() => {
     if (!map || typeof L === 'undefined') {
-      console.log('[Lightning] Proximity: map or Leaflet not available');
       return;
     }
     if (!enabled) {
-      console.log('[Lightning] Proximity: plugin not enabled');
       return;
     }
     if (proximityControl) {
-      console.log('[Lightning] Proximity: already created');
       return; // Already created
     }
     
     if (!window.hamclockConfig) {
-      console.log('[Lightning] Proximity: window.hamclockConfig not available');
+      console.log('[Lightning] Proximity: waiting for hamclockConfig...');
+      // Config not ready yet, will retry when lightningData updates
       return;
     }
     
@@ -837,7 +835,7 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
         } catch (e) {}
       }
     };
-  }, [map, enabled]); // Remove proximityControl from dependencies
+  }, [map, enabled, lightningData]); // Add lightningData to retry when config loads
 
   // Update proximity panel content
   useEffect(() => {
