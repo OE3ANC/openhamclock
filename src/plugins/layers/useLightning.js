@@ -258,12 +258,13 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
   useEffect(() => {
     if (!enabled || !wsKey) return;
 
-    // Available Blitzortung WebSocket servers (in order of preference)
+    // Available Blitzortung WebSocket servers (tested and verified online)
+    // ws3, ws4, ws5, ws6, ws9, ws10 have certificate issues as of 2026-02
     const servers = [
-      'wss://ws8.blitzortung.org',
-      'wss://ws7.blitzortung.org',
-      'wss://ws2.blitzortung.org',
-      'wss://ws1.blitzortung.org'
+      'wss://ws8.blitzortung.org',  // Primary (most reliable)
+      'wss://ws7.blitzortung.org',  // Backup 1
+      'wss://ws2.blitzortung.org',  // Backup 2
+      'wss://ws1.blitzortung.org'   // Backup 3
     ];
 
     const connectWebSocket = () => {
