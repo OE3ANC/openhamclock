@@ -402,6 +402,8 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
 
     const fetchWSPR = async () => {
       try {
+        const timestamp = new Date().toLocaleTimeString();
+        console.log(`[WSPR] Fetching data at ${timestamp}...`);
         const response = await fetch(`/api/wspr/heatmap?minutes=${timeWindow}&band=${bandFilter}`);
         if (response.ok) {
           const data = await response.json();
@@ -1340,20 +1342,20 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign,
       else if (intensity > 0.3) color = '#ffaa00'; // Yellow - warm
       else color = '#00aaff'; // Blue - cool
       
-      // Create cloud-like effect with multiple overlapping circles (REDUCED SIZE)
-      const baseRadius = 8 + (intensity * 15); // 8-23 pixels (much smaller!)
-      const numLayers = 3; // Multiple circles for cloud effect
+      // Create focused heatmap spots (tighter, station-specific)
+      const baseRadius = 3 + (intensity * 8); // 3-11 pixels (very tight!)
+      const numLayers = 2; // Reduced layers for tighter focus
       
       for (let i = 0; i < numLayers; i++) {
-        const layerRadius = baseRadius * (1.5 - i * 0.3); // Decreasing sizes
-        const layerOpacity = (0.2 + intensity * 0.3) * (1 - i * 0.3) * heatmapOpacity; // Slightly more visible
+        const layerRadius = baseRadius * (1.3 - i * 0.2); // Tighter clustering
+        const layerOpacity = (0.3 + intensity * 0.4) * (1 - i * 0.25) * heatmapOpacity; // More visible
         
-        // Slightly offset each layer for organic cloud look (smaller offset)
-        const offsetLat = point.lat + (Math.random() - 0.5) * 0.02;
-        const offsetLon = point.lon + (Math.random() - 0.5) * 0.02;
+        // Very small offset for tight clustering
+        const offsetLat = point.lat + (Math.random() - 0.5) * 0.005;
+        const offsetLon = point.lon + (Math.random() - 0.5) * 0.005;
         
         const circle = L.circle([offsetLat, offsetLon], {
-          radius: layerRadius * 8000, // Much smaller radius (was 50000)
+          radius: layerRadius * 3000, // Much tighter (was 8000, originally 50000)
           fillColor: color,
           fillOpacity: layerOpacity,
           color: color,
