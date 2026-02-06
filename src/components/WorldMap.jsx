@@ -2,7 +2,7 @@
  * WorldMap Component
  * Leaflet map with DE/DX markers, terminator, DX paths, POTA, satellites, PSKReporter
  */
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { MAP_STYLES } from '../utils/config.js';
 import { 
   calculateGridSquare, 
@@ -21,7 +21,8 @@ import { DXNewsTicker } from './DXNewsTicker.jsx';
 export const WorldMap = ({ 
   deLocation, 
   dxLocation, 
-  onDXChange, 
+  onDXChange,
+  dxLocked,
   potaSpots, 
   mySpots, 
   dxPaths, 
@@ -59,6 +60,18 @@ export const WorldMap = ({
   const pskMarkersRef = useRef([]);
   const wsjtxMarkersRef = useRef([]);
   const countriesLayerRef = useRef(null);
+  const dxLockedRef = useRef(dxLocked);
+
+  // Calculate grid locator from DE location for plugins
+  const deLocator = useMemo(() => {
+    if (!deLocation?.lat || !deLocation?.lon) return '';
+    return calculateGridSquare(deLocation.lat, deLocation.lon);
+  }, [deLocation?.lat, deLocation?.lon]);
+
+  // Keep dxLockedRef in sync with prop
+  useEffect(() => {
+    dxLockedRef.current = dxLocked;
+  }, [dxLocked]);
 
   // Plugin system refs and state
   const pluginLayersRef = useRef({});
@@ -148,10 +161,14 @@ export const WorldMap = ({
       }
     }, 60000);
 
-    // Click handler for setting DX
+    // Click handler for setting DX (only if not locked)
     map.on('click', (e) => {
-      if (onDXChange) {
-        onDXChange({ lat: e.latlng.lat, lon: e.latlng.lng });
+      if (onDXChange && !dxLockedRef.current) {
+        // Normalize longitude to -180 to 180 range (Leaflet can return values outside this range when map wraps)
+        let lon = e.latlng.lng;
+        while (lon > 180) lon -= 360;
+        while (lon < -180) lon += 360;
+        onDXChange({ lat: e.latlng.lat, lon });
       }
     });
     
@@ -159,7 +176,11 @@ export const WorldMap = ({
     map.on('moveend', () => {
       const center = map.getCenter();
       const zoom = map.getZoom();
-      setMapView({ center: [center.lat, center.lng], zoom });
+      // Normalize longitude to -180 to 180 range
+      let lng = center.lng;
+      while (lng > 180) lng -= 360;
+      while (lng < -180) lng += 360;
+      setMapView({ center: [center.lat, lng], zoom });
     });
 
     mapInstanceRef.current = map;
@@ -771,6 +792,7 @@ export const WorldMap = ({
           opacity={pluginLayerStates[layerDef.id]?.opacity || layerDef.defaultOpacity}
           map={mapInstanceRef.current}
           callsign={callsign}
+          locator={deLocator}
         />
       ))}
       
@@ -850,12 +872,13 @@ export const WorldMap = ({
       {/* DX News Ticker - left side of bottom bar */}
       {!hideOverlays && <DXNewsTicker />}
 
-      {/* Legend - right side */}
+      {/* Legend - centered above news ticker */}
       {!hideOverlays && (
       <div style={{
         position: 'absolute',
-        bottom: '8px',
-        right: '8px',
+        bottom: '44px',
+        left: '50%',
+        transform: 'translateX(-50%)',
         background: 'rgba(0, 0, 0, 0.85)',
         border: '1px solid #444',
         borderRadius: '6px',
@@ -866,8 +889,7 @@ export const WorldMap = ({
         alignItems: 'center',
         fontSize: '11px',
         fontFamily: 'JetBrains Mono, monospace',
-        flexWrap: 'nowrap',
-        maxWidth: '50%'
+        flexWrap: 'nowrap'
       }}>
         {showDXPaths && (
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
