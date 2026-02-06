@@ -5,37 +5,23 @@ services:
     build: .
     container_name: openhamclock
     ports:
-      - "2237:2237/udp"   # WSJT-X UDP — point WSJT-X to 127.0.0.1:2237
+      - "2237:2237/udp"
     expose:
-      - "3000"
+      - "3000"  # Just expose, don't map
     environment:
       - NODE_ENV=production
       - PORT=3000
-      # Uncomment and set your timezone (IANA format)
-      # This ensures correct local time display, especially with privacy browsers
-      # - TZ=America/New_York
-      # Uncomment to enable WSJT-X relay from local machine (cloud deployments)
-      # - WSJTX_RELAY_KEY=your-secret-relay-key-here
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "https://oe3xgt.at/api/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.openhamclock.rule=Host(`oe3xgt.at`)"
-      - "traefik.http.routers.openhamclock.entrypoints=https"
-      - "traefik.http.routers.openhamclock.tls.certresolver=letsencrypt"
-      - "traefik.http.services.openhamclock.loadbalancer.server.port=3000"
-      # HTTP to HTTPS redirect
-      - "traefik.http.routers.openhamclock-http.rule=Host(`oe3xgt.at`)"
-      - "traefik.http.routers.openhamclock-http.entrypoints=http"
-      - "traefik.http.routers.openhamclock-http.middlewares=redirect-to-https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      start_period: 30s
+    # NO LABELS NEEDED - Coolify auto-generates Caddy config
     networks:
       - coolify
+
 networks:
   coolify:
     external: true
