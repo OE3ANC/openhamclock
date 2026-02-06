@@ -8,6 +8,7 @@ import * as AuroraPlugin from './layers/useAurora.js';
 import * as WSPRPlugin from './layers/useWSPR.js';
 import * as GrayLinePlugin from './layers/useGrayLine.js';
 import * as LightningPlugin from './layers/useLightning.js';
+import * as ContestQsosPlugin from './layers/useContestQsos.js';
 import * as RBNPlugin from './layers/useRBN.js';
 
 const layerPlugins = [
@@ -17,6 +18,7 @@ const layerPlugins = [
   WSPRPlugin,
   GrayLinePlugin,
   LightningPlugin,
+  ContestQsosPlugin,
   RBNPlugin,
 ];
 
