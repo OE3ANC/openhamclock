@@ -38,4 +38,4 @@ export {
   PREFIX_MAP,
   getCallsignInfo
 } from './callsign.js';
-export {filterDXPaths} from "./DXClusterFilters";
+export {filterDXPaths} from "./dxClusterFilters";
