@@ -1723,7 +1723,7 @@ export const SettingsPanel = ({ isOpen, onClose, config, onSave, onResetLayout, 
                 🌡️ Open-Meteo API Key <span style={{ color: 'var(--text-muted)', fontWeight: '400', fontSize: '11px' }}>(optional)</span>
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', lineHeight: 1.4 }}>
-                International weather uses Open-Meteo's free API. For higher rate limits or commercial use,
+                Weather data is provided by Open-Meteo's free API. For higher rate limits or commercial use,
                 enter your API key from <a href="https://open-meteo.com/en/pricing" target="_blank" rel="noopener" style={{ color: 'var(--accent-blue)' }}>open-meteo.com</a>.
                 Leave blank for the free tier.
               </div>

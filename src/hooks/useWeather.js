@@ -165,7 +165,7 @@ export function convertWeatherData(rawData, tempUnit = 'F') {
 const RETRY_DELAYS = [15000, 30000, 60000, 120000, 300000];
 const POLL_INTERVAL = 2 * 60 * 60 * 1000; // 2 hours — matches server cache TTL
 
-// Fetch weather directly from Open-Meteo (used for international locations)
+// Fetch weather directly from Open-Meteo
 // Each user's browser makes its own request — rate limits are per-IP, not per-server
 async function fetchOpenMeteoDirect(lat, lon) {
   let apiKey = '';
@@ -186,14 +186,14 @@ async function fetchOpenMeteoDirect(lat, lon) {
   ];
   if (apiKey) params.push(`apikey=${apiKey}`);
 
-  const url = `https://api.open-meteo.com/v1/forecast?${params.join('&')}`;
-  const response = await fetch(url);
+  const base = apiKey ? 'https://customer-api.open-meteo.com/v1/forecast' : 'https://api.open-meteo.com/v1/forecast';
+  const response = await fetch(`${base}?${params.join('&')}`);
 
   if (response.status === 429) throw new Error('Rate limited');
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
   const data = await response.json();
-  data._source = 'openmeteo-direct';
+  data._source = 'openmeteo';
   return data;
 }
 
@@ -205,60 +205,16 @@ export const useWeather = (location, tempUnit = 'F') => {
   const retryRef = useRef(null);
   const retryCountRef = useRef(0);
 
-  // Fetch always in metric — only depends on location, NOT tempUnit
   useEffect(() => {
     if (!location?.lat || !location?.lon) return;
 
-    const fetchWeather = async (isRetry = false) => {
+    const fetchWeather = async () => {
       try {
         const lat = normalizeLat(location.lat);
         const lon = normalizeLon(location.lon);
 
-        // Ask server — it returns NWS data for US, or _direct flag for international
-        const url = `/api/weather?lat=${lat}&lon=${lon}`;
-        const response = await fetch(url);
-
-        if (response.status === 429) {
-          const retryIdx = Math.min(retryCountRef.current, RETRY_DELAYS.length - 1);
-          const delay = RETRY_DELAYS[retryIdx];
-          retryCountRef.current++;
-          setError({ message: 'Weather service busy', retryIn: Math.round(delay / 1000) });
-          setLoading(false);
-          retryRef.current = setTimeout(() => fetchWeather(true), delay);
-          return;
-        }
-
-        if (response.status === 202) {
-          // NWS data loading on server — retry in 5s
-          setError({ message: 'Weather loading...', retryIn: 5 });
-          setLoading(false);
-          retryRef.current = setTimeout(() => fetchWeather(true), 5000);
-          return;
-        }
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const result = await response.json();
-
-        // Server says: fetch Open-Meteo directly from your browser
-        if (result._direct) {
-          const directData = await fetchOpenMeteoDirect(lat, lon);
-          setRawData(directData);
-          setError(null);
-          retryCountRef.current = 0;
-          setLoading(false);
-          return;
-        }
-
-        // Server may return _pending if NWS worker hasn't cached it yet
-        if (result._pending) {
-          setError({ message: 'Weather loading...', retryIn: 5 });
-          setLoading(false);
-          retryRef.current = setTimeout(() => fetchWeather(true), 5000);
-          return;
-        }
-
-        // Got NWS data from server
-        setRawData(result);
+        const data = await fetchOpenMeteoDirect(lat, lon);
+        setRawData(data);
         setError(null);
         retryCountRef.current = 0;
       } catch (err) {
@@ -266,14 +222,18 @@ export const useWeather = (location, tempUnit = 'F') => {
         const retryIdx = Math.min(retryCountRef.current, RETRY_DELAYS.length - 1);
         const delay = RETRY_DELAYS[retryIdx];
         retryCountRef.current++;
-        setError({ message: 'Weather unavailable', retryIn: Math.round(delay / 1000) });
-        retryRef.current = setTimeout(() => fetchWeather(true), delay);
+        setError({
+          message: err.message === 'Rate limited' ? 'Weather service busy' : 'Weather unavailable',
+          retryIn: Math.round(delay / 1000)
+        });
+        retryRef.current = setTimeout(fetchWeather, delay);
       } finally {
         setLoading(false);
       }
     };
 
-    // Debounce: wait 10 seconds after last location change before fetching
+    // Debounce: wait 10 seconds after last location change before fetching.
+    // Absorbs rapid DX tuning so we only fetch for the final target.
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (retryRef.current) clearTimeout(retryRef.current);
     retryCountRef.current = 0;
