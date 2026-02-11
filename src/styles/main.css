@@ -1029,7 +1029,6 @@ body::before {
   z-index: 650 !important;
   pointer-events: none;
   mix-blend-mode: screen; 
-  /* We remove the hard-coded brightness so the slider feels more responsive */
   filter: contrast(1.2);
   transition: opacity 0.2s ease, clip-path 0.5s ease-in-out;
 }
