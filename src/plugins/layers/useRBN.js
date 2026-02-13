@@ -17,28 +17,43 @@ import { useState, useEffect, useRef } from 'react';
  */
 
 // Make control panel draggable with CTRL+drag and save position
-function makeDraggable(element, storageKey) {
+function makeDraggable(element, storageKey, skipPositionLoad = false) {
   if (!element) return;
   
-  // Load saved position
-  const saved = localStorage.getItem(storageKey);
-  if (saved) {
-    try {
-      const { top, left } = JSON.parse(saved);
+  // Load saved position only if not already loaded
+  if (!skipPositionLoad) {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        element.style.position = 'fixed';
+        
+        // Check if saved as percentage (new format) or pixels (old format)
+        if (data.topPercent !== undefined && data.leftPercent !== undefined) {
+          // Use percentage-based positioning (scales with zoom)
+          element.style.top = data.topPercent + '%';
+          element.style.left = data.leftPercent + '%';
+        } else {
+          // Legacy pixel format - convert to percentage
+          const topPercent = (data.top / window.innerHeight) * 100;
+          const leftPercent = (data.left / window.innerWidth) * 100;
+          element.style.top = topPercent + '%';
+          element.style.left = leftPercent + '%';
+        }
+        
+        element.style.right = 'auto';
+        element.style.bottom = 'auto';
+        element.style.transform = 'none';
+      } catch (e) {}
+    } else {
+      // Convert from Leaflet control position to fixed
+      const rect = element.getBoundingClientRect();
       element.style.position = 'fixed';
-      element.style.top = top + 'px';
-      element.style.left = left + 'px';
+      element.style.top = rect.top + 'px';
+      element.style.left = rect.left + 'px';
       element.style.right = 'auto';
       element.style.bottom = 'auto';
-    } catch (e) {}
-  } else {
-    // Convert from Leaflet control position to fixed
-    const rect = element.getBoundingClientRect();
-    element.style.position = 'fixed';
-    element.style.top = rect.top + 'px';
-    element.style.left = rect.left + 'px';
-    element.style.right = 'auto';
-    element.style.bottom = 'auto';
+    }
   }
   
   // Add drag hint
@@ -101,8 +116,14 @@ function makeDraggable(element, storageKey) {
       element.style.opacity = '1';
       updateCursor(e);
       
-      // Save position
+      // Save position as percentage of viewport for zoom compatibility
+      const topPercent = (element.offsetTop / window.innerHeight) * 100;
+      const leftPercent = (element.offsetLeft / window.innerWidth) * 100;
+      
       const position = {
+        topPercent,
+        leftPercent,
+        // Keep pixel values for backward compatibility
         top: element.offsetTop,
         left: element.offsetLeft
       };
@@ -370,13 +391,17 @@ function freqToBand(freq) {
   return 'Other';
 }
 
-export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign }) {
+export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign, lowMemoryMode = false }) {
   const [spots, setSpots] = useState([]);
   const [selectedBand, setSelectedBand] = useState('all');
-  const [timeWindow, setTimeWindow] = useState(5); // minutes (0.1 = 6 seconds, 15 = 15 minutes)
+  const [timeWindow, setTimeWindow] = useState(lowMemoryMode ? 2 : 5); // minutes - shorter in low memory
   const [minSNR, setMinSNR] = useState(-10);
   const [showPaths, setShowPaths] = useState(true);
   const [stats, setStats] = useState({ total: 0, skimmers: 0, avgSNR: 0 });
+  
+  // Low memory mode limits
+  const MAX_SPOTS = lowMemoryMode ? 25 : 200;
+  const UPDATE_INTERVAL = lowMemoryMode ? 60000 : 60000; // 60s for all - be kind to servers and bandwidth
   
   const layersRef = useRef([]);
   const controlRef = useRef(null);
@@ -549,7 +574,7 @@ export function useLayer({ enabled = false, opacity = 0.7, map = null, callsign 
   useEffect(() => {
     if (enabled && callsign && callsign !== 'N0CALL') {
       fetchRBNSpots();
-      updateIntervalRef.current = setInterval(fetchRBNSpots, 10000); // Update every 10 seconds for real-time
+      updateIntervalRef.current = setInterval(fetchRBNSpots, UPDATE_INTERVAL);
     }
     
     return () => {

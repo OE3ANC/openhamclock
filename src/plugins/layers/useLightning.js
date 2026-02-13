@@ -65,28 +65,43 @@ function getStrikeColor(ageMinutes) {
 }
 
 // Make control draggable with CTRL+drag
-function makeDraggable(element, storageKey) {
+function makeDraggable(element, storageKey, skipPositionLoad = false) {
   if (!element) return;
   
-  // Load saved position
-  const saved = localStorage.getItem(storageKey);
-  if (saved) {
-    try {
-      const { top, left } = JSON.parse(saved);
+  // Load saved position only if not already loaded
+  if (!skipPositionLoad) {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+        element.style.position = 'fixed';
+        
+        // Check if saved as percentage (new format) or pixels (old format)
+        if (data.topPercent !== undefined && data.leftPercent !== undefined) {
+          // Use percentage-based positioning (scales with zoom)
+          element.style.top = data.topPercent + '%';
+          element.style.left = data.leftPercent + '%';
+        } else {
+          // Legacy pixel format - convert to percentage
+          const topPercent = (data.top / window.innerHeight) * 100;
+          const leftPercent = (data.left / window.innerWidth) * 100;
+          element.style.top = topPercent + '%';
+          element.style.left = leftPercent + '%';
+        }
+        
+        element.style.right = 'auto';
+        element.style.bottom = 'auto';
+        element.style.transform = 'none';
+      } catch (e) {}
+    } else {
+      // Convert from Leaflet control position to fixed
+      const rect = element.getBoundingClientRect();
       element.style.position = 'fixed';
-      element.style.top = top + 'px';
-      element.style.left = left + 'px';
+      element.style.top = rect.top + 'px';
+      element.style.left = rect.left + 'px';
       element.style.right = 'auto';
       element.style.bottom = 'auto';
-    } catch (e) {}
-  } else {
-    // Convert from Leaflet control position to fixed
-    const rect = element.getBoundingClientRect();
-    element.style.position = 'fixed';
-    element.style.top = rect.top + 'px';
-    element.style.left = rect.left + 'px';
-    element.style.right = 'auto';
-    element.style.bottom = 'auto';
+    }
   }
   
   element.title = 'Hold CTRL and drag to reposition';
@@ -144,7 +159,14 @@ function makeDraggable(element, storageKey) {
       element.style.opacity = '1';
       updateCursor(e);
       
+      // Save position as percentage of viewport for zoom compatibility
+      const topPercent = (element.offsetTop / window.innerHeight) * 100;
+      const leftPercent = (element.offsetLeft / window.innerWidth) * 100;
+      
       const position = {
+        topPercent,
+        leftPercent,
+        // Keep pixel values for backward compatibility
         top: element.offsetTop,
         left: element.offsetLeft
       };
@@ -232,7 +254,7 @@ function addMinimizeToggle(element, storageKey) {
   });
 }
 
-export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
+export function useLayer({ enabled = false, opacity = 0.9, map = null, lowMemoryMode = false }) {
   const [strikeMarkers, setStrikeMarkers] = useState([]);
   const [lightningData, setLightningData] = useState([]);
   const [statsControl, setStatsControl] = useState(null);
@@ -245,6 +267,10 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
   const previousStrikeIds = useRef(new Set());
   const currentServerIndexRef = useRef(0); // Track which server we're using
   const connectionAttemptsRef = useRef(0); // Track connection attempts
+  
+  // Low memory mode limits
+  const MAX_STRIKES = lowMemoryMode ? 100 : 500;
+  const STRIKE_RETENTION_MS = lowMemoryMode ? 60000 : 300000; // 1 min vs 5 min
 
   // Fetch WebSocket key from Blitzortung (fallback to 111)
   useEffect(() => {
@@ -305,11 +331,11 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
               // Add to buffer
               strikesBufferRef.current.push(strike);
               
-              // Keep only last 30 minutes of strikes
-              const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-              strikesBufferRef.current = strikesBufferRef.current.filter(
-                s => s.timestamp > thirtyMinutesAgo
-              );
+              // Keep only strikes within retention window
+              const cutoffTime = Date.now() - STRIKE_RETENTION_MS;
+              strikesBufferRef.current = strikesBufferRef.current
+                .filter(s => s.timestamp > cutoffTime)
+                .slice(-MAX_STRIKES); // Keep only most recent MAX_STRIKES
 
               // Update state every second to batch updates
               if (!reconnectTimerRef.current) {
@@ -900,26 +926,45 @@ export function useLayer({ enabled = false, opacity = 0.9, map = null }) {
         
         // Try to load saved position (but validate it's on-screen)
         const saved = localStorage.getItem('lightning-proximity-position');
+        let positionLoaded = false;
         if (saved) {
           try {
-            const { top, left } = JSON.parse(saved);
-            // Only apply if position is reasonable (not off-screen)
-            if (top >= 0 && top < window.innerHeight - 100 && 
-                left >= 0 && left < window.innerWidth - 200) {
-              container.style.top = top + 'px';
-              container.style.left = left + 'px';
-              container.style.transform = 'none'; // Remove centering transform
-              console.log('[Lightning] Proximity: Applied saved position:', { top, left });
-            } else {
-              console.log('[Lightning] Proximity: Saved position off-screen, using center');
-              localStorage.removeItem('lightning-proximity-position'); // Clear bad position
+            const data = JSON.parse(saved);
+            
+            // Check if saved as percentage (new format) or pixels (old format)
+            if (data.topPercent !== undefined && data.leftPercent !== undefined) {
+              // Use percentage-based positioning (scales with zoom)
+              container.style.top = data.topPercent + '%';
+              container.style.left = data.leftPercent + '%';
+              container.style.transform = 'none';
+              positionLoaded = true;
+              console.log('[Lightning] Proximity: Applied saved position (percentage):', { 
+                topPercent: data.topPercent, 
+                leftPercent: data.leftPercent 
+              });
+            } else if (data.top !== undefined && data.left !== undefined) {
+              // Legacy pixel format - validate and convert to percentage
+              if (data.top >= 0 && data.top < window.innerHeight - 100 && 
+                  data.left >= 0 && data.left < window.innerWidth - 200) {
+                const topPercent = (data.top / window.innerHeight) * 100;
+                const leftPercent = (data.left / window.innerWidth) * 100;
+                container.style.top = topPercent + '%';
+                container.style.left = leftPercent + '%';
+                container.style.transform = 'none';
+                positionLoaded = true;
+                console.log('[Lightning] Proximity: Converted pixel to percentage:', { topPercent, leftPercent });
+              } else {
+                console.log('[Lightning] Proximity: Saved pixel position off-screen, using center');
+                localStorage.removeItem('lightning-proximity-position');
+              }
             }
           } catch (e) {
             console.error('[Lightning] Proximity: Error applying saved position:', e);
           }
         }
         
-        makeDraggable(container, 'lightning-proximity-position');
+        // Make draggable - pass flag to skip position loading since we already did it
+        makeDraggable(container, 'lightning-proximity-position', positionLoaded);
         addMinimizeToggle(container, 'lightning-proximity-position');
         console.log('[Lightning] Proximity: Panel is now draggable and minimizable');
         

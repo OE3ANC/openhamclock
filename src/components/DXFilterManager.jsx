@@ -69,24 +69,26 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
 
   const tabStyle = (active) => ({
     padding: '8px 16px',
-    background: active ? 'var(--bg-tertiary)' : 'transparent',
+    background: active ? 'var(--accent-amber)' : 'transparent',
     border: 'none',
-    borderBottom: active ? '2px solid var(--accent-cyan)' : '2px solid transparent',
-    color: active ? 'var(--accent-cyan)' : 'var(--text-muted)',
+    borderBottom: active ? '2px solid var(--accent-amber)' : '2px solid transparent',
+    color: active ? '#000' : 'var(--text-muted)',
     fontSize: '13px',
     cursor: 'pointer',
-    fontFamily: 'inherit'
+    fontFamily: 'inherit',
+    fontWeight: active ? '600' : '400'
   });
 
   const chipStyle = (selected) => ({
     padding: '6px 12px',
-    background: selected ? 'rgba(0, 221, 255, 0.2)' : 'var(--bg-tertiary)',
-    border: `1px solid ${selected ? 'var(--accent-cyan)' : 'var(--border-color)'}`,
+    background: selected ? 'var(--accent-amber)' : 'var(--bg-tertiary)',
+    border: `1px solid ${selected ? 'var(--accent-amber)' : 'var(--border-color)'}`,
     borderRadius: '4px',
-    color: selected ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+    color: selected ? '#000' : 'var(--text-secondary)',
     fontSize: '12px',
     cursor: 'pointer',
-    fontFamily: 'JetBrains Mono, monospace'
+    fontFamily: 'JetBrains Mono, monospace',
+    fontWeight: selected ? '600' : '400'
   });
 
   const zoneButtonStyle = (selected) => ({
@@ -95,13 +97,14 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: selected ? 'rgba(0, 221, 255, 0.2)' : 'var(--bg-tertiary)',
-    border: `1px solid ${selected ? 'var(--accent-cyan)' : 'var(--border-color)'}`,
+    background: selected ? 'var(--accent-amber)' : 'var(--bg-tertiary)',
+    border: `1px solid ${selected ? 'var(--accent-amber)' : 'var(--border-color)'}`,
     borderRadius: '4px',
-    color: selected ? 'var(--accent-cyan)' : 'var(--text-secondary)',
+    color: selected ? '#000' : 'var(--text-secondary)',
     fontSize: '12px',
     cursor: 'pointer',
-    fontFamily: 'JetBrains Mono, monospace'
+    fontFamily: 'JetBrains Mono, monospace',
+    fontWeight: selected ? '600' : '400'
   });
 
   const addToWatchlist = () => {
@@ -138,8 +141,11 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
     <div>
       {/* Continents */}
       <div style={{ marginBottom: '20px' }}>
-        <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '10px' }}>
-          Include Spotter (DE) Continents
+        <div style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)', marginBottom: '4px' }}>
+          Spotter (DE) Continent
+        </div>
+        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+          Shows spots FROM these continents reporting DX OUTSIDE these continents
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
           {continents.map(c => (
@@ -157,7 +163,7 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
       {/* CQ Zones */}
       <div style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Include Spotter (DE) Zones</span>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Spotter (DE) CQ Zones</span>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button onClick={() => selectAll('cqZones', Array.from({length: 40}, (_, i) => i + 1))} style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '12px', cursor: 'pointer' }}>Select All</button>
             <button onClick={() => clearFilter('cqZones')} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', fontSize: '12px', cursor: 'pointer' }}>Clear</button>
@@ -179,7 +185,7 @@ export const DXFilterManager = ({ filters, onFilterChange, isOpen, onClose }) =>
       {/* ITU Zones */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Include Spotter (DE) ITU Zones</span>
+          <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-primary)' }}>Spotter (DE) ITU Zones</span>
           <div style={{ display: 'flex', gap: '12px' }}>
             <button onClick={() => selectAll('ituZones', Array.from({length: 90}, (_, i) => i + 1))} style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', fontSize: '12px', cursor: 'pointer' }}>Select All</button>
             <button onClick={() => clearFilter('ituZones')} style={{ background: 'none', border: 'none', color: 'var(--accent-red)', fontSize: '12px', cursor: 'pointer' }}>Clear</button>
